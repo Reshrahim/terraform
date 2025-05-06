@@ -66,10 +66,10 @@ resource "kubernetes_deployment" "postgresql" {
           name  = "postgres"
           resources {
             requests = {
-              memory = memory[context.resource.properties.size].memoryRequest
+              memory = memory[var.context.resource.properties.size].memoryRequest
               }
               limits = {
-                memory= memory[context.resource.properties.size].memoryLimit
+                memory= memory[var.context.resource.properties.size].memoryLimit
               }
             }
           env {
