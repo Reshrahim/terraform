@@ -9,7 +9,10 @@ terraform {
 
 variable "location" {
   type    = string
-  default = data.azurerm_resource_group.location
+}
+
+variable "resource_group_name" {
+  type = string
 }
 
 variable "context" {
@@ -29,7 +32,7 @@ locals {
 resource "azurerm_cognitive_account" "openai" {
   name                = local.uniqueName
   location            = var.location
-  resource_group_name = data.azurerm_resource_group.this.name
+  resource_group_name = var.resource_group_name
   kind                = "OpenAI"
   sku_name            = "S0"
 }
