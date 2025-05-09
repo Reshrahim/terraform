@@ -47,7 +47,7 @@ resource "azurerm_cognitive_deployment" "gpt35" {
       }
     sku {
         name = "S0"
-        capacity = local.capacity_lookup[var.context.resource.capacity]
+        capacity = local.capacity_lookup[var.context.resource.properties.capacity]
       }
 }
 
