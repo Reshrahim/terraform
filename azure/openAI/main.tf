@@ -48,7 +48,7 @@ resource "azurerm_cognitive_deployment" "gpt35" {
     rai_policy_name        = "Microsoft.Default"
     version_upgrade_option = "OnceNewDefaultVersionAvailable"  
     sku {
-      name     = "S0"
+      name     = "Standard"
       capacity = local.capacity_lookup[var.context.resource.properties.capacity]
     }
   }
