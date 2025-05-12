@@ -1,8 +1,8 @@
 terraform {
   required_providers {
-    azure = {
+    azurerm = {
       source  = "hashicorp/azurerm"
-      version = ">= 3.0, < 4.0"
+      version = ">= 3.75.0"
     }
   }
 }
@@ -48,10 +48,10 @@ resource "azurerm_cognitive_deployment" "gpt35" {
     rai_policy_name        = "Microsoft.Default"
     version_upgrade_option = "OnceNewDefaultVersionAvailable"  
     sku {
-        name = "Standard"
-        capacity = local.capacity_lookup[var.context.resource.properties.capacity]
-      }
-}
+      name     = "S0"
+      capacity = local.capacity_lookup[var.context.resource.properties.capacity]
+    }
+  }
 
 output "result" {
   value = {
