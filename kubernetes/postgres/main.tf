@@ -36,8 +36,10 @@ locals {
   namespace = var.context.runtime.kubernetes.namespace
 }
 
-resource "random_password" "password" {
+resource "random_password" "example" {
   length           = 16
+  special          = true
+  override_special = "!@#^&*()-_=+"
 }
 
 resource "kubernetes_deployment" "postgresql" {
