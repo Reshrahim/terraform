@@ -49,12 +49,12 @@ module "postgresql" {
 output "result" {
   value = {
     values = {
-      host = "${kubernetes_service.postgresql.metadata[0].name}.${kubernetes_service.postgresql.metadata[0].namespace}.svc.cluster.local"
-      port = "${kubernetes_service.postgresql.spec[0].port[0].port}"
-      database = local.uniqueName
-      username = local.username
-      password_key = "password"
-      password_secret = "${kubernetes_secret.postgresql[0].metadata[0].name}"
+      host            = "${module.postgresql.hostname}.${local.namespace}.svc.cluster.local"
+      port            = module.postgresql.port
+      database        = module.postgresql.database_name
+      username        = module.postgresql.username
+      password_key    = module.postgresql.password_key
+      password_secret = module.postgresql.password_secret
     }
   }
 }
