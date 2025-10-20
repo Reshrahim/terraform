@@ -31,29 +31,33 @@ variable "memory" {
 }
 
 locals {
-  uniqueName = var.context.resource.name
-  namespace = var.context.runtime.kubernetes.namespace
-  username = "postgres"
+  uniqueName      = var.context.resource.name
+  namespace       = var.context.runtime.kubernetes.namespace
+  username        = "postgres"
+  memory_settings = try(var.memory[var.context.resource.properties.size], var.memory["S"])
 }
 
 module "postgresql" {
-  source        = "ballj/postgresql/kubernetes"
-  version       = "~> 1.2"
-  namespace     = namespace
-  object_prefix = "myapp-db"
-  name          = uniqueName
-  password_key = "password"
+  source  = "ballj/postgresql/kubernetes"
+  version = "~> 1.2"
+  namespace     = local.namespace
+  object_prefix = local.uniqueName
+  name          = local.uniqueName
+  username      = local.username
+  resources_requests_memory = local.memory_settings.memoryRequest
+  resources_limits_memory   = local.memory_settings.memoryLimit
+  password_key   = "password"
 }
 
 output "result" {
   value = {
     values = {
-      host = "${kubernetes_service.postgresql.metadata[0].name}.${kubernetes_service.postgresql.metadata[0].namespace}.svc.cluster.local"
-      port = "${kubernetes_service.postgresql.spec[0].port[0].port}"
-      database = local.uniqueName
-      username = local.username
-      password_key = "password"
-      password_secret = "${kubernetes_secret.postgresql[0].metadata[0].name}"
+      host            = "${module.postgresql.hostname}.${local.namespace}.svc.cluster.local"
+      port            = module.postgresql.port
+      database        = module.postgresql.name
+      username        = module.postgresql.username
+      password_key    = module.postgresql.password_key
+      password_secret = module.postgresql.password_secret
     }
   }
 }
