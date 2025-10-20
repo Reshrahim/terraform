@@ -1,4 +1,4 @@
- terraform {
+terraform {
   required_providers {
     kubernetes = {
       source  = "hashicorp/kubernetes"
@@ -44,8 +44,8 @@ module "postgresql" {
   name          = local.uniqueName
   username      = local.username
   password_key  = "password"
-  image_name    = "postgres:16-alpine"
-  image_tag     = "16"
+  image_name    = "postgres"
+  image_tag     = "16-alpine"
 }
 
 output "result" {
