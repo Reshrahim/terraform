@@ -51,7 +51,7 @@ output "result" {
     values = {
       host            = "${module.postgresql.hostname}.${local.namespace}.svc.cluster.local"
       port            = module.postgresql.port
-      database        = module.postgresql.database_name
+      database        = module.postgresql.name
       username        = module.postgresql.username
       password_key    = module.postgresql.password_key
       password_secret = module.postgresql.password_secret
