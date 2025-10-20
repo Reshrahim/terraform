@@ -44,6 +44,8 @@ module "postgresql" {
   name          = local.uniqueName
   username      = local.username
   password_key  = "password"
+  image_name    = "ghcr.io/radius-project/postgres"
+  image_tag     = "16"
 }
 
 output "result" {
