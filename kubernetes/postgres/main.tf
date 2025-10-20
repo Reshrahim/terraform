@@ -47,6 +47,8 @@ module "postgresql" {
   resources_requests_memory = local.memory_settings.memoryRequest
   resources_limits_memory   = local.memory_settings.memoryLimit
   password_key   = "password"
+  image_name = "postgres"
+  image_tag  = "16"
 }
 
 output "result" {
