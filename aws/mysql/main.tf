@@ -17,10 +17,11 @@ terraform {
 //////////////////////////////////////////
 
 locals {
-  resource_name    = var.context.resource.name
-  application_name = var.context.application != null ? var.context.application.name : ""
-  environment_name = var.context.environment != null ? var.context.environment.name : ""
-  namespace        = var.context.runtime.kubernetes.namespace
+  resource_name  = var.context.resource.name
+  resource_id    = var.context.resource.id
+  application_id = var.context.application != null ? var.context.application.id : ""
+  environment_id = var.context.environment != null ? var.context.environment.id : ""
+  namespace      = var.context.runtime.kubernetes.namespace
 }
 
 //////////////////////////////////////////
@@ -29,21 +30,31 @@ locals {
 
 locals {
   port        = 3306
-  database    = try(var.context.resource.properties.database, local.application_name)
+  database    = try(var.context.resource.properties.database, local.resource_name)
   secret_name = var.context.resource.properties.secretName
   version     = try(var.context.resource.properties.version, "8.4")
 
+  unique_suffix = substr(md5("${local.resource_id}-${var.eksClusterName}"), 0, 13)
+
   # RDS identifier must be lowercase alphanumeric and hyphens, max 63 chars
-  sanitized_identifier = substr(replace(lower(local.resource_name), "/[^a-z0-9-]/", "-"), 0, 63)
+  sanitized_identifier = "rds-dbinstance-${local.unique_suffix}"
 
   # Database name must be alphanumeric and underscores
   sanitized_database = replace(local.database, "/[^a-zA-Z0-9_]/", "_")
 
   tags = {
-    "radapp.io/resource"    = local.resource_name
-    "radapp.io/application" = local.application_name
-    "radapp.io/environment" = local.environment_name
+    "radapp.io/environment" = local.environment_id
+    "radapp.io/application" = local.application_id
+    "radapp.io/resource"    = local.resource_id
   }
+}
+
+//////////////////////////////////////////
+// EKS cluster networking
+//////////////////////////////////////////
+
+data "aws_eks_cluster" "cluster" {
+  name = var.eksClusterName
 }
 
 //////////////////////////////////////////
@@ -63,8 +74,9 @@ data "kubernetes_secret" "db_credentials" {
 //////////////////////////////////////////
 
 resource "aws_db_subnet_group" "mysql" {
-  name       = "${local.sanitized_identifier}-subnet-group"
-  subnet_ids = var.subnetIds
+  name        = "rds-dbsubnetgroup-${local.unique_suffix}"
+  description = "rds-dbsubnetgroup-${local.unique_suffix}"
+  subnet_ids  = data.aws_eks_cluster.cluster.vpc_config[0].subnet_ids
 
   tags = local.tags
 }
@@ -85,9 +97,10 @@ resource "aws_db_instance" "mysql" {
   storage_encrypted = true
 
   db_subnet_group_name   = aws_db_subnet_group.mysql.name
-  vpc_security_group_ids = [var.securityGroupId]
+  vpc_security_group_ids = [data.aws_eks_cluster.cluster.vpc_config[0].cluster_security_group_id]
   publicly_accessible    = false
 
+  backup_retention_period   = 1
   skip_final_snapshot       = true
   final_snapshot_identifier = "${local.sanitized_identifier}-final"
 
