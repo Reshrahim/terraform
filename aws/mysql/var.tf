@@ -3,19 +3,24 @@ variable "context" {
   type        = any
 }
 
-variable "eksClusterName" {
-  description = "Name of the EKS cluster. Used to discover VPC, subnets, and security groups."
+variable "vpcId" {
+  description = "ID of the VPC where the RDS instance will be created."
   type        = string
 }
 
-variable "subnetGroupName" {
-  description = "Name of an existing DB subnet group. If not provided, one is created using EKS cluster subnets."
-  type        = string
-  default     = ""
-}
-
-variable "vpcSecurityGroupIds" {
-  description = "List of VPC security group IDs for the RDS instance. If not provided, the EKS cluster security group is used."
+variable "subnetIds" {
+  description = "List of private subnet IDs for the DB subnet group (at least two AZs recommended)."
   type        = list(string)
-  default     = []
+}
+
+variable "instanceClass" {
+  description = "The RDS instance class."
+  type        = string
+  default     = "db.t3.micro"
+}
+
+variable "allocatedStorage" {
+  description = "Initial allocated storage in GB."
+  type        = number
+  default     = 20
 }
