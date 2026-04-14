@@ -30,7 +30,7 @@ locals {
 
 locals {
   port        = 3306
-  database    = try(var.context.resource.properties.database, local.application_name)
+  database    = try(var.context.resource.properties.database, "mysql_db")
   secret_name = var.context.resource.properties.secretName
   version     = try(var.context.resource.properties.version, "8.4")
 
@@ -74,6 +74,7 @@ data "kubernetes_secret" "db_credentials" {
 //////////////////////////////////////////
 
 resource "aws_db_subnet_group" "mysql" {
+  count       = var.subnetGroupName == "" ? 1 : 0
   name        = "rds-dbsubnetgroup-${local.unique_suffix}"
   description = "rds-dbsubnetgroup-${local.unique_suffix}"
   subnet_ids  = data.aws_eks_cluster.cluster.vpc_config[0].subnet_ids
@@ -96,8 +97,8 @@ resource "aws_db_instance" "mysql" {
   storage_type      = "gp3"
   storage_encrypted = true
 
-  db_subnet_group_name   = aws_db_subnet_group.mysql.name
-  vpc_security_group_ids = [data.aws_eks_cluster.cluster.vpc_config[0].cluster_security_group_id]
+  db_subnet_group_name   = var.subnetGroupName != "" ? var.subnetGroupName : aws_db_subnet_group.mysql[0].name
+  vpc_security_group_ids = length(var.vpcSecurityGroupIds) > 0 ? var.vpcSecurityGroupIds : [data.aws_eks_cluster.cluster.vpc_config[0].cluster_security_group_id]
   publicly_accessible    = false
 
   backup_retention_period   = 1
