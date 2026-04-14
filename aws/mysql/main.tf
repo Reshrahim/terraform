@@ -40,7 +40,7 @@ locals {
   sanitized_identifier = "rds-dbinstance-${local.unique_suffix}"
 
   # Database name: alphanumeric and underscores only
-  sanitized_database = regexreplace(local.database, "[^0-9A-Za-z_]", "_")
+  sanitized_database = replace(local.database, "/[^0-9A-Za-z_]/", "_")
 
   tags = {
     "radapp.io/resource"    = local.resource_name
@@ -117,7 +117,7 @@ module "db" {
 
   create_db_subnet_group = true
   db_subnet_group_name   = "rds-dbsubnetgroup-${local.unique_suffix}"
-  subnet_ids             = var.subnetIds
+  subnet_ids             = jsondecode(var.subnetIds)
 
   vpc_security_group_ids = [module.rds_security_group.security_group_id]
 
