@@ -78,7 +78,6 @@ resource "aws_db_subnet_group" "mysql" {
   name        = "rds-dbsubnetgroup-${local.unique_suffix}"
   description = "rds-dbsubnetgroup-${local.unique_suffix}"
   subnet_ids  = data.aws_eks_cluster.cluster.vpc_config[0].subnet_ids
-
   tags = local.tags
 }
 
@@ -89,8 +88,8 @@ resource "aws_db_instance" "mysql" {
   instance_class = "db.t3.micro"
 
   db_name  = local.sanitized_database
-  username = data.kubernetes_secret.db_credentials.data["USERNAME"]
-  password = data.kubernetes_secret.db_credentials.data["PASSWORD"]
+  username = try(data.kubernetes_secret.db_credentials.data["USERNAME"], "")
+  password = try(data.kubernetes_secret.db_credentials.data["PASSWORD"], "")
   port     = local.port
 
   allocated_storage = 20
