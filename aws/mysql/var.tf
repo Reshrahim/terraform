@@ -9,8 +9,8 @@ variable "vpcId" {
 }
 
 variable "subnetIds" {
-  description = "List of private subnet IDs for the DB subnet group (at least two AZs recommended)."
-  type        = list(string)
+  description = "JSON-encoded list of private subnet IDs for the DB subnet group (at least two AZs recommended)."
+  type        = string
 }
 
 variable "instanceClass" {
