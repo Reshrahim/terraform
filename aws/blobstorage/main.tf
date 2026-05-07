@@ -73,8 +73,6 @@ output "result" {
       accountKey  = ""
       container   = local.container_name
     }
-    resources = [
-      aws_s3_bucket.storage.arn
-    ]
+    resources = []
   }
 }
