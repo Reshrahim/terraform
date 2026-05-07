@@ -491,10 +491,6 @@ output "result" {
     values = {
       agentEndpoint = "http://agent-runtime:8000"
     }
-    resources = [
-      aws_cloudwatch_log_group.agent.arn,
-      aws_opensearchserverless_collection.search.arn,
-      aws_lambda_function.indexer.arn,
-    ]
+    resources = []
   }
 }
