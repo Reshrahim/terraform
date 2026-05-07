@@ -116,9 +116,7 @@ output "result" {
       user     = local.username
       password = random_password.admin.result
     }
-    resources = [
-      aws_db_instance.postgres.arn
-    ]
+    resources = []
   }
   sensitive = true
 }
