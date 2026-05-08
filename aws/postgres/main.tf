@@ -5,9 +5,9 @@ terraform {
       source  = "hashicorp/aws"
       version = ">= 5.0"
     }
-    kubernetes = {
-      source  = "hashicorp/kubernetes"
-      version = ">= 2.37.1"
+    random = {
+      source  = "hashicorp/random"
+      version = ">= 3.0"
     }
   }
 }
@@ -20,7 +20,6 @@ locals {
   resource_name    = var.context.resource.name
   application_name = var.context.application != null ? var.context.application.name : ""
   environment_name = var.context.environment != null ? var.context.environment.name : ""
-  namespace        = var.context.runtime.kubernetes.namespace
 }
 
 //////////////////////////////////////////
@@ -54,10 +53,22 @@ variable "allocatedStorage" {
   default     = 20
 }
 
+variable "username" {
+  description = "Admin username for PostgreSQL"
+  type        = string
+  default     = "pgadmin"
+}
+
+variable "password" {
+  description = "Admin password for PostgreSQL. If empty, a random password is generated."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 locals {
   port          = 5432
   database      = try(var.context.resource.properties.database, "postgres_db")
-  secret_name   = var.context.resource.properties.secretName
   version       = try(var.context.resource.properties.version, "16")
   unique_suffix = substr(md5(local.resource_name), 0, 13)
 
@@ -67,6 +78,8 @@ locals {
   # Database name: alphanumeric and underscores only
   sanitized_database = replace(local.database, "/[^0-9A-Za-z_]/", "_")
 
+  admin_password = var.password != "" ? var.password : random_password.admin[0].result
+
   tags = {
     "radapp.io/resource"    = local.resource_name
     "radapp.io/application" = local.application_name
@@ -75,14 +88,13 @@ locals {
 }
 
 //////////////////////////////////////////
-// Credentials
+// Random password (used when password not provided)
 //////////////////////////////////////////
 
-data "kubernetes_secret" "db_credentials" {
-  metadata {
-    name      = local.secret_name
-    namespace = local.namespace
-  }
+resource "random_password" "admin" {
+  count   = var.password == "" ? 1 : 0
+  length  = 24
+  special = false
 }
 
 //////////////////////////////////////////
@@ -133,8 +145,8 @@ module "db" {
   instance_class       = var.instanceClass
 
   db_name  = local.sanitized_database
-  username = try(data.kubernetes_secret.db_credentials.data["USERNAME"], "")
-  password = try(data.kubernetes_secret.db_credentials.data["PASSWORD"], "")
+  username = var.username
+  password = local.admin_password
   port     = local.port
 
   allocated_storage = var.allocatedStorage
@@ -163,6 +175,9 @@ output "result" {
       host     = module.db.db_instance_address
       port     = module.db.db_instance_port
       database = local.sanitized_database
+      user     = var.username
+      password = local.admin_password
     }
   }
+  sensitive = true
 }
