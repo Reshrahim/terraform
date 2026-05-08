@@ -1,136 +1,168 @@
 terraform {
+  required_version = ">= 1.5"
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.0"
+      version = ">= 5.0"
     }
-    random = {
-      source  = "hashicorp/random"
-      version = "~> 3.0"
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = ">= 2.37.1"
     }
   }
 }
+
+//////////////////////////////////////////
+// Common Radius variables
+//////////////////////////////////////////
+
+locals {
+  resource_name    = var.context.resource.name
+  application_name = var.context.application != null ? var.context.application.name : ""
+  environment_name = var.context.environment != null ? var.context.environment.name : ""
+  namespace        = var.context.runtime.kubernetes.namespace
+}
+
+//////////////////////////////////////////
+// PostgreSQL variables
+//////////////////////////////////////////
 
 variable "context" {
   description = "Radius-provided context for the recipe"
   type        = any
 }
 
-variable "region" {
-  description = "AWS region for provisioned resources"
+variable "vpcId" {
+  description = "VPC ID where the RDS instance will be created"
   type        = string
-  default     = "us-west-2"
+}
+
+variable "subnetIds" {
+  description = "JSON-encoded list of subnet IDs for the DB subnet group"
+  type        = string
+}
+
+variable "instanceClass" {
+  description = "RDS instance class"
+  type        = string
+  default     = "db.t4g.micro"
+}
+
+variable "allocatedStorage" {
+  description = "Allocated storage in GB"
+  type        = number
+  default     = 20
 }
 
 locals {
-  name     = var.context.resource.name
-  database = try(var.context.resource.properties.database, "postgres_db")
-  size     = try(var.context.resource.properties.size, "S")
-  port     = 5432
-  username = "pgadmin"
+  port          = 5432
+  database      = try(var.context.resource.properties.database, "postgres_db")
+  secret_name   = var.context.resource.properties.secretName
+  version       = try(var.context.resource.properties.version, "16")
+  unique_suffix = substr(md5(local.resource_name), 0, 13)
 
-  sku_map = {
-    S = "db.t4g.micro"
-    M = "db.r6g.large"
-    L = "db.r6g.xlarge"
-  }
+  # RDS identifier: lowercase alphanumeric and hyphens, max 63 chars
+  sanitized_identifier = "rds-pg-${local.unique_suffix}"
 
-  storage_map = {
-    S = 20
-    M = 50
-    L = 100
-  }
+  # Database name: alphanumeric and underscores only
+  sanitized_database = replace(local.database, "/[^0-9A-Za-z_]/", "_")
 
   tags = {
-    "radius-resource"      = local.name
-    "radius-resource-type" = "Radius.Data/postgreSqlDatabases"
+    "radapp.io/resource"    = local.resource_name
+    "radapp.io/application" = local.application_name
+    "radapp.io/environment" = local.environment_name
   }
 }
 
-resource "random_password" "admin" {
-  length  = 24
-  special = false
-}
+//////////////////////////////////////////
+// Credentials
+//////////////////////////////////////////
 
-resource "random_id" "suffix" {
-  byte_length = 4
-}
-
-# Use the VPC that the EKS cluster is running in
-data "aws_vpc" "default" {
-  default = true
-}
-
-data "aws_subnets" "default" {
-  filter {
-    name   = "vpc-id"
-    values = [data.aws_vpc.default.id]
+data "kubernetes_secret" "db_credentials" {
+  metadata {
+    name      = local.secret_name
+    namespace = local.namespace
   }
 }
 
-resource "aws_db_subnet_group" "postgres" {
-  name_prefix = "${local.name}-pg-"
-  subnet_ids  = data.aws_subnets.default.ids
-  tags        = local.tags
+//////////////////////////////////////////
+// RDS security group
+//////////////////////////////////////////
+
+data "aws_vpc" "selected" {
+  id = var.vpcId
 }
 
-resource "aws_security_group" "postgres" {
-  name_prefix = "${local.name}-pg-"
-  description = "Allow PostgreSQL access"
-  vpc_id      = data.aws_vpc.default.id
+module "rds_security_group" {
+  source  = "terraform-aws-modules/security-group/aws"
+  version = "~> 5.0"
 
-  ingress {
-    from_port   = local.port
-    to_port     = local.port
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "PostgreSQL"
-  }
+  name        = "rds-pg-sg-${local.unique_suffix}"
+  description = "Security group for RDS PostgreSQL - ${local.resource_name}"
+  vpc_id      = var.vpcId
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  ingress_with_cidr_blocks = [
+    {
+      from_port   = local.port
+      to_port     = local.port
+      protocol    = "tcp"
+      description = "PostgreSQL access"
+      cidr_blocks = data.aws_vpc.selected.cidr_block
+    }
+  ]
+
+  egress_rules = ["all-all"]
 
   tags = local.tags
 }
 
-resource "aws_db_instance" "postgres" {
-  identifier     = "${local.name}-${random_id.suffix.hex}"
-  engine         = "postgres"
-  engine_version = "16"
-  instance_class = local.sku_map[local.size]
+//////////////////////////////////////////
+// RDS instance
+//////////////////////////////////////////
 
-  allocated_storage = local.storage_map[local.size]
-  storage_type      = "gp3"
+module "db" {
+  source  = "terraform-aws-modules/rds/aws"
+  version = "~> 6.0"
 
-  db_name  = replace(local.database, "-", "_")
-  username = local.username
-  password = random_password.admin.result
+  identifier = local.sanitized_identifier
+
+  engine               = "postgres"
+  engine_version       = local.version
+  family               = "postgres${local.version}"
+  major_engine_version = local.version
+  instance_class       = var.instanceClass
+
+  db_name  = local.sanitized_database
+  username = try(data.kubernetes_secret.db_credentials.data["USERNAME"], "")
+  password = try(data.kubernetes_secret.db_credentials.data["PASSWORD"], "")
   port     = local.port
 
-  db_subnet_group_name   = aws_db_subnet_group.postgres.name
-  vpc_security_group_ids = [aws_security_group.postgres.id]
-  publicly_accessible    = true
-  skip_final_snapshot    = true
+  allocated_storage = var.allocatedStorage
+  storage_type      = "gp3"
 
-  backup_retention_period = 7
+  create_db_subnet_group = true
+  db_subnet_group_name   = "rds-pg-subnetgroup-${local.unique_suffix}"
+  subnet_ids             = jsondecode(var.subnetIds)
+
+  vpc_security_group_ids = [module.rds_security_group.security_group_id]
+
+  skip_final_snapshot = true
+  apply_immediately   = true
 
   tags = local.tags
 }
+
+//////////////////////////////////////////
+// Output
+//////////////////////////////////////////
 
 output "result" {
   value = {
-    values = {
-      host     = aws_db_instance.postgres.address
-      port     = local.port
-      database = aws_db_instance.postgres.db_name
-      user     = local.username
-      password = random_password.admin.result
-    }
     resources = []
+    values = {
+      host     = module.db.db_instance_address
+      port     = module.db.db_instance_port
+      database = local.sanitized_database
+    }
   }
-  sensitive = true
 }
