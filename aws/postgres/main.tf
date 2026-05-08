@@ -56,9 +56,22 @@ resource "random_id" "suffix" {
   byte_length = 4
 }
 
-# Security group allowing PostgreSQL access from within the VPC
+# Use the VPC that the EKS cluster is running in
 data "aws_vpc" "default" {
   default = true
+}
+
+data "aws_subnets" "default" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
+  }
+}
+
+resource "aws_db_subnet_group" "postgres" {
+  name_prefix = "${local.name}-pg-"
+  subnet_ids  = data.aws_subnets.default.ids
+  tags        = local.tags
 }
 
 resource "aws_security_group" "postgres" {
@@ -98,6 +111,7 @@ resource "aws_db_instance" "postgres" {
   password = random_password.admin.result
   port     = local.port
 
+  db_subnet_group_name   = aws_db_subnet_group.postgres.name
   vpc_security_group_ids = [aws_security_group.postgres.id]
   publicly_accessible    = true
   skip_final_snapshot    = true
