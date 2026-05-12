@@ -59,7 +59,7 @@ resource "random_id" "suffix" {
 # ── CloudWatch Log Group ────────────────────────────────────
 
 resource "aws_cloudwatch_log_group" "agent" {
-  name              = "/radius/${local.name}"
+  name              = "radius-${local.name}"
   retention_in_days = 30
   tags              = local.tags
 }
