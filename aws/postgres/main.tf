@@ -159,6 +159,7 @@ module "db" {
   vpc_security_group_ids = [module.rds_security_group.security_group_id]
 
   storage_encrypted = false
+  manage_master_user_password = false
 
   skip_final_snapshot = true
   apply_immediately   = true
