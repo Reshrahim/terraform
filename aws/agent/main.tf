@@ -28,6 +28,7 @@ variable "region" {
 
 locals {
   name           = var.context.resource.name
+  namespace      = var.context.runtime.kubernetes.namespace
   application    = var.context.resource.properties.application
   environment    = var.context.resource.properties.environment
   prompt         = var.context.resource.properties.prompt
@@ -360,7 +361,7 @@ resource "aws_iam_role_policy" "agent_pod_policy" {
 resource "kubernetes_deployment" "agent_runtime" {
   metadata {
     name      = "agent-runtime"
-    namespace = "aws"
+    namespace = local.namespace
     labels = {
       app                    = "agent-runtime"
       "radius-resource-type" = "Radius.AI-agents"
@@ -459,7 +460,7 @@ resource "kubernetes_deployment" "agent_runtime" {
 resource "kubernetes_service" "agent_runtime" {
   metadata {
     name      = "agent-runtime"
-    namespace = "aws"
+    namespace = local.namespace
   }
 
   spec {
@@ -477,7 +478,7 @@ resource "kubernetes_service" "agent_runtime" {
 resource "kubernetes_service_account" "agent_runtime" {
   metadata {
     name      = "agent-runtime"
-    namespace = "aws"
+    namespace = local.namespace
     annotations = {
       "eks.amazonaws.com/role-arn" = aws_iam_role.agent_pod_role.arn
     }
