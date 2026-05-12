@@ -34,7 +34,7 @@ locals {
   prompt         = var.context.resource.properties.prompt
   model          = try(var.context.resource.properties.model, "anthropic.claude-3-5-sonnet-20241022-v2:0")
   knowledge_base = "${local.name}-kb"
-  agent_image    = "ghcr.io/radius-project/lab/agent-runtime:1.0"
+  agent_image    = "ghcr.io/reshrahim/agent-runtime:1.0"
 
   # Postgres connection from Radius connections
   postgres_host     = try(var.context.resource.connections.postgres.properties.host, "")
