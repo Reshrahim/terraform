@@ -26,6 +26,11 @@ variable "region" {
   default     = "us-west-2"
 }
 
+variable "eksClusterName" {
+  description = "EKS cluster name (used to look up the OIDC provider for IRSA)"
+  type        = string
+}
+
 locals {
   name           = var.context.resource.name
   namespace      = var.context.runtime.kubernetes.namespace
@@ -107,6 +112,23 @@ resource "aws_opensearchserverless_collection" "search" {
 
 # Data access policy for the Lambda and agent runtime
 data "aws_caller_identity" "current" {}
+
+# Look up EKS cluster OIDC issuer
+data "aws_eks_cluster" "cluster" {
+  name = var.eksClusterName
+}
+
+locals {
+  oidc_issuer = trimprefix(data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer, "https://")
+}
+
+# Create the OIDC provider if it doesn't exist
+resource "aws_iam_openid_connect_provider" "eks" {
+  url             = data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer
+  client_id_list  = ["sts.amazonaws.com"]
+  thumbprint_list = ["9e99a48a9960b14926bb7f3b02e22da2b0ab7280"]
+  tags            = local.tags
+}
 
 resource "aws_opensearchserverless_access_policy" "data" {
   name = "${local.name}-data"
@@ -316,9 +338,15 @@ resource "aws_iam_role" "agent_pod_role" {
     Statement = [{
       Effect = "Allow"
       Principal = {
-        Federated = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/oidc.eks.${var.region}.amazonaws.com"
+        Federated = aws_iam_openid_connect_provider.eks.arn
       }
       Action = "sts:AssumeRoleWithWebIdentity"
+      Condition = {
+        StringEquals = {
+          "${local.oidc_issuer}:sub" = "system:serviceaccount:${local.namespace}:agent-runtime"
+          "${local.oidc_issuer}:aud" = "sts.amazonaws.com"
+        }
+      }
     }]
   })
 
