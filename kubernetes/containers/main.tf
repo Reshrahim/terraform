@@ -510,6 +510,16 @@ resource "kubernetes_manifest" "secret_provider_class" {
           {
             objectName = each.value.secret_ref
             objectType = "secretsmanager"
+            jmesPath = [
+              {
+                path        = "username"
+                objectAlias = "${each.key}-username"
+              },
+              {
+                path        = "password"
+                objectAlias = "${each.key}-password"
+              }
+            ]
           }
         ])
         } : {
@@ -530,11 +540,11 @@ resource "kubernetes_manifest" "secret_provider_class" {
           type       = "Opaque"
           data = [
             {
-              objectName = each.value.is_aws ? each.value.secret_ref : each.value.azure_secret_name
+              objectName = each.value.is_aws ? "${each.key}-username" : each.value.azure_secret_name
               key        = "username"
             },
             {
-              objectName = each.value.is_aws ? each.value.secret_ref : each.value.azure_secret_name
+              objectName = each.value.is_aws ? "${each.key}-password" : each.value.azure_secret_name
               key        = "password"
             }
           ]
