@@ -426,6 +426,20 @@ locals {
   oidc_issuer       = local.has_aws_cloud_secrets ? replace(data.aws_eks_cluster.current[0].identity[0].oidc[0].issuer, "https://", "") : ""
 }
 
+# Look up the KMS key IDs used to encrypt the secrets
+data "aws_secretsmanager_secret" "cloud_secrets" {
+  for_each = local.has_aws_cloud_secrets ? toset(local.aws_secret_arns) : toset([])
+  arn      = each.value
+}
+
+locals {
+  # Collect unique KMS key ARNs from the secrets (filter out empty/null)
+  aws_secret_kms_key_arns = distinct([
+    for s in data.aws_secretsmanager_secret.cloud_secrets : s.kms_key_id
+    if s.kms_key_id != null && s.kms_key_id != ""
+  ])
+}
+
 # IAM policy to read the specific secrets
 resource "aws_iam_policy" "secrets_access" {
   count = local.has_aws_cloud_secrets ? 1 : 0
@@ -435,13 +449,22 @@ resource "aws_iam_policy" "secrets_access" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Effect   = "Allow"
-        Action   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
-        Resource = local.aws_secret_arns
-      }
-    ]
+    Statement = concat(
+      [
+        {
+          Effect   = "Allow"
+          Action   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
+          Resource = local.aws_secret_arns
+        }
+      ],
+      length(local.aws_secret_kms_key_arns) > 0 ? [
+        {
+          Effect   = "Allow"
+          Action   = ["kms:Decrypt"]
+          Resource = local.aws_secret_kms_key_arns
+        }
+      ] : []
+    )
   })
 }
 
